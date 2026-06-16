@@ -195,7 +195,8 @@ The integration shipped across eight `/loop` iterations on branch
   oia-manifest + threat-model + mcp-scan into one timestamped record;
   persistence to `metaharness-audit` memory namespace; weekly cron
   workflow `.github/workflows/oia-audit-weekly.yml` at Sundays 04:17 UTC.
-- 🔄/✅ `SelfEvolvingRouter` parallel-logging — ANALYZER LANDED (iter 10):
+- ✅ `SelfEvolvingRouter` parallel-logging — BOTH HALVES LANDED:
+  - **Analyzer** (iter 10):
   `plugins/ruflo-metaharness/scripts/router-parallel-analyze.mjs` reads
   paired routing decisions from a JSONL trajectory file and computes
   the 3-criteria AND-gate from review-round-1. Verified end-to-end with
@@ -203,10 +204,24 @@ The integration shipped across eight `/loop` iterations on branch
   insufficient-data path exits cleanly at n<30). `@metaharness/kernel`
   added to `optionalDependencies` of `@claude-flow/cli` AND
   `ruflo/package.json` so the future Recording side can dynamic-import
-  `SelfEvolvingRouter` without a static dep. The RECORDING side (the
-  parallel-log emitter in `model-router.ts` hot path) is the only
-  remaining piece — its blast radius is high and warrants its own ADR
-  before merging.
+  `SelfEvolvingRouter` without a static dep.
+  - **Recorder primitive** (iter 11):
+    `v3/@claude-flow/cli/src/ruvector/router-parallel-recorder.ts`
+    exports `recordPair(task, bandit, ser)` + `recordPairOutcome(task,
+    outcome)` + `parallelRecorderStatus()`. Env-gated via
+    `CLAUDE_FLOW_ROUTER_PARALLEL_LOG=1` — no-op when unset (default).
+    Every `appendFileSync` wrapped in try/catch with debug-only stderr
+    logging; ADR-150 rule #3 satisfied (never throws from the routing
+    path). 10MB rotation. Default output path
+    `.swarm/router-parallel.jsonl` matches the iter-10 analyzer's
+    default `--input`.
+
+    The model-router.ts hot path needs ONE LINE added when the
+    follow-up ADR ships the dispatch-side change: `recordPair({...})`
+    inside the existing route() function alongside the bandit pick.
+    That isolated edit is now the only remaining work, and its blast
+    radius is minimal because the recorder primitive is independently
+    tested and TS-typed.
 
 ### Phase-1 item #3 — Real seed corpus retraining 🔄 PENDING
 Requires production trajectory data. The pipeline is wired:

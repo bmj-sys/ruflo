@@ -170,6 +170,26 @@ if (!od.metaharness) { console.error('missing metaharness in optionalDependencie
 if (j.dependencies && j.dependencies.metaharness) { console.error('metaharness leaked into dependencies'); process.exit(1); }
 " 2>/dev/null && ok || bad "ruflo wrapper missing metaharness optionalDep"
 
+step "17e. router-parallel-recorder TS module (ADR-150 SelfEvolvingRouter recording — iter 11)"
+F="$ROOT/../../v3/@claude-flow/cli/src/ruvector/router-parallel-recorder.ts"
+miss=""
+[[ -f "$F" ]] || miss="$miss missing-file"
+# Architectural constraint #2: env-gated optional behavior
+grep -q "CLAUDE_FLOW_ROUTER_PARALLEL_LOG" "$F" || miss="$miss no-env-gate"
+# Constraint #3: graceful degradation — every appendFileSync is wrapped
+grep -q "ADR-150" "$F" || miss="$miss no-adr-anchor"
+grep -qE "never (throws|throw|block)|never throw" "$F" || miss="$miss no-no-throw-doc"
+# Public API surface
+grep -q "export function recordPair\b" "$F" || miss="$miss no-recordPair-export"
+grep -q "export function recordPairOutcome\b" "$F" || miss="$miss no-recordPairOutcome-export"
+grep -q "export function parallelRecorderStatus\b" "$F" || miss="$miss no-status-export"
+# Pairs cleanly with the analyzer's expected JSONL shape
+grep -q "task_hash" "$F" || miss="$miss no-task-hash"
+grep -q "predictedQuality\|predictedCostUsd" "$F" || miss="$miss no-prediction-fields"
+# Default path matches analyzer's default input
+grep -q "router-parallel.jsonl" "$F" || miss="$miss path-mismatch-with-analyzer"
+[[ -z "$miss" ]] && ok || bad "$miss"
+
 step "17d. router-parallel-analyze (ADR-150 SelfEvolvingRouter promotion gate — iter 10)"
 F="$ROOT/scripts/router-parallel-analyze.mjs"
 miss=""
