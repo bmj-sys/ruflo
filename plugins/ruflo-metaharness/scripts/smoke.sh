@@ -191,6 +191,28 @@ grep -q "execCli(\[\s*'-y'\s*,\s*'metaharness@latest'" "$F" 2>/dev/null || \
 grep -q "cwd: opts" "$F" || miss="$miss no-cwd-passthrough"
 [[ -z "$miss" ]] && ok || bad "$miss"
 
+step "17z52. SUBCOMMANDS map entries point at existing script files (iter 89)"
+miss=""
+# CLI dispatcher (metaharness.ts) has a SUBCOMMANDS map that routes
+# `metaharness X` → `scripts/X.mjs`. If a future iter renames a script
+# but forgets the map (or vice-versa), `ruflo metaharness X` errors at
+# runtime: "Script not found at <path>". Smoke catches the drift here.
+DISP="$ROOT/../../v3/@claude-flow/cli/src/commands/metaharness.ts"
+SCRIPTS_DIR="$ROOT/scripts"
+# Extract each `'subname': 'file.mjs'` or `subname: 'file.mjs'` mapping.
+# Both quoted and unquoted-key forms appear in the source.
+MAPPINGS=$(grep -E "^\s+('?[a-z-]+'?):\s*'[a-z-]+\.mjs'" "$DISP" 2>/dev/null \
+  | sed -E "s/.*'([a-z-]+\.mjs)'.*/\1/")
+COUNT=0
+for f in $MAPPINGS; do
+  COUNT=$((COUNT + 1))
+  [[ -f "$SCRIPTS_DIR/$f" ]] || miss="$miss script-${f}-missing"
+done
+# Iter 73's description string lists 10 subcommands. SUBCOMMANDS map should
+# have the same 10 entries. Lock the count at exactly 10.
+[[ "$COUNT" == "10" ]] || miss="$miss mapping-count-stale:$COUNT-expected-10"
+[[ -z "$miss" ]] && ok || bad "$miss"
+
 step "17z51. all metaharness scripts produce parseable JSON in --format json mode (iter 88)"
 miss=""
 # Codifies iter-87's lesson across the whole script family. Each script
