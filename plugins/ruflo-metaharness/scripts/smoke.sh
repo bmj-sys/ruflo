@@ -191,6 +191,29 @@ grep -q "execCli(\[\s*'-y'\s*,\s*'metaharness@latest'" "$F" 2>/dev/null || \
 grep -q "cwd: opts" "$F" || miss="$miss no-cwd-passthrough"
 [[ -z "$miss" ]] && ok || bad "$miss"
 
+step "17z77. bench scripts emit results[] with numeric meanUs (iter 114)"
+miss=""
+# iter 88 verified bench output JSON.parses. iter 114 goes further:
+# bench JSON must have a non-empty results[] array with numeric meanUs
+# per entry. An empty array would pass JSON.parse but break iter-82/iter-87
+# artifact analysis + the inline `node -e` GITHUB_STEP_SUMMARY tables.
+for bench in bench-similarity bench-parse-mcp-scan; do
+  OUT=$(node "$ROOT/scripts/${bench}.mjs" --iters 500 --format json 2>/dev/null)
+  SHAPE=$(echo "$OUT" | python3 -c "
+import json, sys, re
+m = re.search(r'\{[\s\S]*\}', sys.stdin.read())
+d = json.loads(m.group()) if m else {}
+r = d.get('results', None)
+if not isinstance(r, list): print('not-array')
+elif len(r) == 0: print('empty')
+elif not all(isinstance(x.get('meanUs'), (int, float)) for x in r): print('non-numeric-meanUs')
+elif not all(isinstance(x.get('label'), str) for x in r): print('non-string-label')
+else: print('OK')
+" 2>/dev/null)
+  [[ "$SHAPE" == "OK" ]] || miss="$miss ${bench}-${SHAPE}"
+done
+[[ -z "$miss" ]] && ok || bad "$miss"
+
 step "17z76. oia-audit emits startedAt + finishedAt timestamp pair (iter 113)"
 miss=""
 # Companion to iter-112. oia-audit is the documented multi-step
